@@ -7,6 +7,7 @@
 \usepackage{tikz}
 \usepackage[skins]{tcolorbox} % Use [skins] to get the rounded shape
 
+
 % --- Define our simple \questionheader command ---
 \newcommand{\questionheader}[1]{%
   \begin{tcolorbox}[
@@ -43,6 +44,11 @@
     language=Python,
     basicstyle=\ttfamily, 
     }
+
+\pagestyle{headandfoot}
+% \firstpageheader{Assignment 2}{}{Dwaipayan Haldar}
+\runningheader{Assignment 2}{}{Dwaipayan Haldar}
+
 
 \begin{document}
 
@@ -119,7 +125,7 @@ FFT Result: [-2. -2.  2.  2.]
 
     \begin{itemize}
         \item[1] In the first part, Wiener Filter is implemented using the given formula where K and kernel is passed as hyperparameter. 
-        \item[2] In the second part, choice of K for wiener filter is important. The value of K is tuned by $(SNR)^-1$. The signal power is calculated using the variance of the observed signal. Since the audio signal is almost 0 mean, so it is a good approximation of energy. The noise level is known, so it is just the noise level squared.
+        \item[2] In the second part, choice of K for wiener filter is important. The value of K is tuned by $(SNR)^{-1}$. The signal power is calculated using the variance of the observed signal. Since the audio signal is almost 0 mean, so it is a good approximation of energy. The noise level is known, so it is just the noise level squared.
     \end{itemize}
     
 \end{solution}
@@ -178,7 +184,7 @@ FFT Result: [-2. -2.  2.  2.]
 
         \begin{figure}
             \centering
-            \includegraphics[scale = 0.4]{P06.png}
+            \includegraphics[scale = 0.35]{P06.png}
             \caption{Original Image of page.png, Blurred image and restored image}
             \label{fig:5}
         \end{figure}
