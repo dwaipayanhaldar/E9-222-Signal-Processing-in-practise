@@ -1,0 +1,318 @@
+\documentclass[12pt,a4paper,onecolumn]{exam}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{tikz}
+\usepackage[skins]{tcolorbox} % Use [skins] to get the rounded shape
+
+
+% --- Define our simple \questionheader command ---
+\newcommand{\questionheader}[1]{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=black,
+    coltext=white,
+    boxrule=0pt,
+    fontupper=\Large\bfseries,
+    arc=4mm
+  ]
+  #1
+  \end{tcolorbox}%
+}
+% --- End of definition ---
+\newtcolorbox{answerbox}[1]{
+  boxrule=0.4pt,   % Sets the thickness of the border
+  colback=white,   % Sets the background color
+  height=#1,       % <-- Use the first argument (#1) as the height
+}
+
+
+\usepackage[font = small]{caption}
+\usepackage{subcaption}
+
+\newenvironment{blanksolution}
+  {%
+    \renewcommand{\solutiontitle}{\noindent}%
+    \begin{solution}%
+  }%
+  {\end{solution}}
+\usepackage{listings}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily,
+    }
+
+\pagestyle{headandfoot}
+% \firstpageheader{Assignment 2}{}{Dwaipayan Haldar}
+\runningheader{Assignment 2}{}{Dwaipayan Haldar}
+
+
+\begin{document}
+
+\begingroup
+    \centering
+    \LARGE E9 222 Signal Processing in Practice\\
+    \LARGE Assignment 2\\[0.5em]
+    \large \today\\[0.5em]
+    \large Dwaipayan Haldar\par
+\endgroup
+\noindent\rule{\textwidth}{0.5pt}
+\printanswers
+\renewcommand{\solutiontitle}{\noindent\textbf{Ans:}\enspace}
+
+
+%****Question 1****
+
+\questionheader{1. Plot 1D DCT Basis Functions}
+
+\textbf{(a) Construct the basis}
+
+\begin{solution}
+A function \verb|dct_matrix(N)| was implemented that constructs the $N \times N$ orthonormal DCT-II matrix $D$ with entries:
+\[
+D_{k,n} = \phi_k[n] = \alpha_k \cos\left(\frac{\pi}{N}\left(n + \frac{1}{2}\right)k\right)
+\]
+where $\alpha_k = \sqrt{1/N}$ for $k=0$ and $\alpha_k = \sqrt{2/N}$ for $k = 1, 2, \ldots, N-1$.
+
+For $N = 32$, The orthonormality of the DCT matrix is verified by computing the Frobenius norm:
+\[
+\|DD^\top - I\|_F = 1.8845 \times 10^{-14}
+\]
+Ideally, it should be 0. But the small error is there due to the rounding off effect in machine and machines cannot be infinite precision. 
+\end{solution}
+
+\textbf{(b) Visualize basis functions}
+
+\begin{solution}
+Figure \ref{fig:1d_basis} shows the first eight DCT basis functions ($k = 0, 1, \ldots, 7$) for $N = 32$.
+
+Observations:
+\begin{itemize}
+    \item The $k=0$ basis function is a constant (DC component), representing the average value of the signal.
+    \item As $k$ increases, the basis functions oscillate with increasing frequency.
+    \item The basis functions form a complete orthonormal set, enabling perfect reconstruction of any signal.
+\end{itemize}
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{P01.png}
+    \caption{First eight 1D DCT-II basis functions ($k = 0, 1, \ldots, 7$) for $N = 32$.}
+    \label{fig:1d_basis}
+\end{figure}
+
+%****Question 2****
+\questionheader{2. Plot 2D DCT Basis Functions}
+
+\textbf{(a) Separable 2D basis}
+
+\begin{solution}
+The 2D DCT basis functions are constructed using the separable property of the DCT. For indices $(u, v)$, the 2D basis pattern is defined as:
+\[
+\Phi_{u,v}[m, n] = \phi_u[m] \cdot \phi_v[n], \quad m, n \in \{0, \ldots, 7\}
+\]
+A function \verb|dct2d_basis(u, v, M, N)| was implementated that computes the outer product of two 1D basis vectors to generate the 2D basis image for any $(u, v)$.
+\end{solution}
+
+\textbf{(b) Visualize the full $8 \times 8$ set}
+
+\begin{solution}
+Figure \ref{fig:2d_basis} displays all 64 basis patterns $\{\Phi_{u,v}\}$ arranged in an $8 \times 8$ grid, where rows are indexed by $u$ (vertical frequency) and columns by $v$ (horizontal frequency).
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{P02.png}
+    \caption{Complete set of 64 2D DCT basis patterns ($8 \times 8$ grid) for $M = N = 8$.}
+    \label{fig:2d_basis}
+\end{figure}
+
+\textbf{(c) 2D DCT on image blocks}
+
+\begin{solution}
+\textbf{(i) 2D DCT on an $8 \times 8$ image block:}
+
+The 2D DCT was applied to an $8 \times 8$ grayscale image block by projecting onto the 2D basis functions. The DCT coefficients $\hat{x}[u,v]$ are computed as:
+\[
+\hat{x}[u,v] = \sum_{m=0}^{7} \sum_{n=0}^{7} x[m,n] \cdot \Phi_{u,v}[m,n]
+\]
+
+\textbf{(ii) Perfect reconstruction:}
+
+The image was reconstructed from its DCT coefficients using:
+\[
+x[m,n] = \sum_{u=0}^{7} \sum_{v=0}^{7} \hat{x}[u,v] \cdot \Phi_{u,v}[m,n]
+\]
+Figure~\ref{fig:2d_recon} shows the original and reconstructed images, demonstrating perfect reconstruction.
+
+\textbf{(iii) Energy distribution in DCT coefficients:}
+
+Figure~\ref{fig:dct_coeffs} shows the distribution of DCT coefficients for a typical image block. The energy is highly concentrated in the low-frequency coefficients (top-left corner), with the DC coefficient $(0,0)$ containing the largest magnitude. Higher frequency coefficients (bottom-right) have significantly smaller values. 
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P02a.png}
+    \caption{Original $8 \times 8$ image block and its reconstruction from DCT coefficients.}
+    \label{fig:2d_recon}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{P02b.png}
+    \caption{DCT coefficient magnitudes for an $8 \times 8$ image block. Energy is concentrated in low-frequency components (top-left).}
+    \label{fig:dct_coeffs}
+\end{figure}
+
+%****Question 3****
+\questionheader{3. Implement JPEG-style Compression and Investigate Energy Compaction}
+
+\textbf{(a) Block DCT and reconstruction (no quantization)}
+
+\begin{solution}
+Block based DCT was implemented and error between reconstructed and original is calculated. It is approximately 0. 
+
+The maximum absolute reconstruction error without quantization was:
+\[
+\max |x_{\text{original}} - x_{\text{reconstructed}}| = 5.329 \times 10^{-15}
+\]
+This error is at machine precision, confirming perfect reconstruction when no quantization is applied.
+\end{solution}
+
+\textbf{(b) Quantization (JPEG idea)}
+
+\begin{solution}
+JPEG-style was implemented quantization using a parametric quantization matrix:
+\[
+Q[u,v] = 1 + s(u + v)
+\]
+where $s > 0$ is the compression strength parameter. The quantization process is:
+\[
+\hat{x}_Q[u,v] = \text{round}\left(\frac{\hat{x}[u,v]}{Q[u,v]}\right), \quad \tilde{x}[u,v] = \hat{x}_Q[u,v] \cdot Q[u,v]
+\]
+This quantization matrix applies stronger quantization to higher frequency components (larger $u+v$), which aligns with the JPEG philosophy of preserving low-frequency information while aggressively quantizing high-frequency details that are less perceptually important.
+\end{solution}
+
+\textbf{(d) Quality vs compression study}
+
+\begin{solution}
+Five compression strengths was tested: $s \in \{0.01, 0.1, 1, 10, 100\}$. Figures \ref{fig:comp1}--\ref{fig:comp5} show the reconstructed images at each compression level.
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P03d_i.png}
+    \caption{Compression with $s = 0.01$: Near-lossless reconstruction.}
+    \label{fig:comp1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P03d_ii.png}
+    \caption{Compression with $s = 0.1$: High quality reconstruction.}
+    \label{fig:comp2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P03d_iii.png}
+    \caption{Compression with $s = 1$: Moderate compression with some visible artifacts.}
+    \label{fig:comp3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P03d_iv.png}
+    \caption{Compression with $s = 10$: High compression with noticeable blocking artifacts.}
+    \label{fig:comp4}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P03d_v.png}
+    \caption{Compression with $s = 100$: Severe compression with significant quality degradation.}
+    \label{fig:comp5}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{P03d.png}
+    \caption{PSNR and Sparsity vs Compression Strength. Left: PSNR decreases as $s$ increases. Right: Sparsity (zero-fraction) increases with $s$.}
+    \label{fig:psnr_sparsity}
+\end{figure}
+
+\textbf{(e) Energy compaction (core concept)}
+
+\begin{solution}
+The energy compaction for all $8 \times 8$ blocks in the image is given by:
+\[
+E_{\text{total}} = \sum_{u,v} |\hat{x}[u,v]|^2, \quad E_K = \sum_{(u,v) \in S_K} |\hat{x}[u,v]|^2
+\]
+where $S_K$ contains the indices for a $K \times K$ region.
+
+\textbf{(a) Low-frequency energy fractions (top-left $K \times K$):}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+\textbf{K} & \textbf{$E_K / E_{\text{total}}$} \\
+\hline
+1 & 0.9584 \\
+2 & 0.9824 \\
+3 & 0.9917 \\
+4 & 0.9952 \\
+5 & 0.9974 \\
+6 & 0.9987 \\
+7 & 0.9995 \\
+8 & 1.0000 \\
+\hline
+\end{tabular}
+\caption{Energy fraction in top-left $K \times K$ coefficients.}
+\end{table}
+
+\textbf{(b) Interpretation:}
+
+The energy accumulates extremely rapidly in the low-frequency coefficients:
+\begin{itemize}
+    \item Just the DC coefficient ($K=1$) captures \textbf{95.84\%} of the total energy.
+    \item The top-left $2 \times 2$ coefficients capture \textbf{98.24\%} of the energy.
+    \item By $K=4$, we have \textbf{99.52\%} of the total energy using only 25\% of the coefficients.
+\end{itemize}
+This demonstrates the excellent \textbf{energy compaction} property of the DCT for natural images.
+
+\textbf{(c) High-frequency comparison (bottom-right $K \times K$):}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+\textbf{K} & \textbf{$E_K / E_{\text{total}}$} \\
+\hline
+1 & 0.0000 \\
+2 & 0.0000 \\
+3 & 0.0001 \\
+4 & 0.0004 \\
+5 & 0.0012 \\
+6 & 0.0032 \\
+7 & 0.0110 \\
+8 & 1.0000 \\
+\hline
+\end{tabular}
+\caption{Energy fraction in bottom-right $K \times K$ coefficients.}
+\end{table}
+
+The high-frequency coefficients contain negligible energy. Even the bottom-right $7 \times 7$ region (49 out of 64 coefficients, excluding only the DC and first row/column) contains only \textbf{1.1\%} of the total energy. This stark contrast between low and high frequency energy distribution is why JPEG compression works so well---we can heavily quantize (or even discard) high-frequency coefficients with minimal perceptual impact.
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P03e.png}
+    \caption{Energy compaction comparison: Low-frequency (top-left $K \times K$) vs High-frequency (bottom-right $K \times K$). The DCT exhibits excellent energy compaction, with most energy concentrated in low-frequency coefficients.}
+    \label{fig:energy_compaction}
+\end{figure}
+
+\end{document}
