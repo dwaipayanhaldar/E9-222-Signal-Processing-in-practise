@@ -1,0 +1,180 @@
+\documentclass[12pt,a4paper,onecolumn]{exam}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{tikz}
+\usepackage[skins]{tcolorbox} % Use [skins] to get the rounded shape
+
+
+% --- Define our simple \questionheader command ---
+\newcommand{\questionheader}[1]{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=black,
+    coltext=white,
+    boxrule=0pt,
+    fontupper=\Large\bfseries,
+    arc=4mm
+  ]
+  #1
+  \end{tcolorbox}%
+}
+% --- End of definition ---
+\newtcolorbox{answerbox}[1]{
+  boxrule=0.4pt,   % Sets the thickness of the border
+  colback=white,   % Sets the background color
+  height=#1,       % <-- Use the first argument (#1) as the height
+}
+
+
+\usepackage[font = small]{caption}
+\usepackage{subcaption}
+
+\newenvironment{blanksolution}
+  {%
+    \renewcommand{\solutiontitle}{\noindent}%
+    \begin{solution}%
+  }%
+  {\end{solution}}
+\usepackage{listings}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily,
+    }
+
+\pagestyle{headandfoot}
+% \firstpageheader{Assignment 5}{}{Dwaipayan Haldar}
+\runningheader{Assignment 5}{Signal Processing in Practise}{Dwaipayan Haldar}
+
+
+\begin{document}
+
+\begingroup
+    \centering
+    \LARGE E9 222 Signal Processing in Practice\\
+    \LARGE Assignment 5\\[0.5em]
+    \large \today\\[0.5em]
+    \large Dwaipayan Haldar\par
+\endgroup
+\noindent\rule{\textwidth}{0.5pt}
+\printanswers
+\renewcommand{\solutiontitle}{\noindent\textbf{Ans:}\enspace}
+
+
+
+
+%****Question 1****
+\questionheader{1. Experiment 1 -- Low Pass Gaussian Filter}
+
+
+\textbf{(a) Optimal Gaussian filter for each noisy image}
+
+\begin{solution}
+For each noisy image (except \texttt{img167.bmp}, used as the reference), a Gaussian filter of size $11 \times 11$ was applied with $\sigma \in \{0.1, 1, 2, 4, 8\}$. The optimal $\sigma$ was selected as the one minimizing the MSE with respect to the reference image \texttt{img167.bmp}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Image} & \textbf{File} & \textbf{Best $\sigma$} & \textbf{MSE (before)} & \textbf{MSE (after)} \\
+\hline
+Image 1 & img125.bmp & 0.1 & 24.77   & 24.77 \\
+Image 2 & img6.bmp   & 0.1 & 79.70   & 79.70 \\
+Image 3 & img108.bmp & 1   & 919.07  & 185.04 \\
+Image 4 & img32.bmp  & 1   & 1638.51 & 248.24 \\
+Image 5 & img137.bmp & 8   & 15423.49 & 1651.68 \\
+\hline
+\end{tabular}
+\caption{Optimal Gaussian filter parameters for each noisy image (sorted by increasing noise level). MSE is computed w.r.t.\ the reference image \texttt{img167.bmp}.}
+\label{tab:optimal_sigma}
+\end{table}
+
+Figures~\ref{fig:p01a}--\ref{fig:p01e} show the noisy images alongside their denoised versions using the best Gaussian filter.
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P01a.png}
+    \caption{Image 1 (\texttt{img125.bmp}): Very low noise. Best $\sigma = 0.1$ (near identity filter). The image is already close to the reference, so minimal smoothing is optimal.}
+    \label{fig:p01a}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P01b.png}
+    \caption{Image 2 (\texttt{img6.bmp}): Low noise. Best $\sigma = 0.1$. Slight noise present but still best handled with minimal filtering.}
+    \label{fig:p01b}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P01c.png}
+    \caption{Image 3 (\texttt{img108.bmp}): Moderate noise. Best $\sigma = 1$. Visible noise requires moderate smoothing.}
+    \label{fig:p01c}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P01d.png}
+    \caption{Image 4 (\texttt{img32.bmp}): Moderate--high noise. Best $\sigma = 1$. Heavier noise but the same $\sigma$ as Image~3 is optimal.}
+    \label{fig:p01d}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{P01e.png}
+    \caption{Image 5 (\texttt{img137.bmp}): Very high noise. Best $\sigma = 8$. The image is severely corrupted, requiring aggressive smoothing.}
+    \label{fig:p01e}
+\end{figure}
+
+
+\textbf{(b) Curve: Image index vs optimal $\sigma$}
+
+\begin{solution}
+Figure~\ref{fig:p01_curve} plots the optimal $\sigma$ against the image index (sorted by increasing noise level).
+
+\textbf{Observations:}
+\begin{itemize}
+    \item The optimal $\sigma$ increases monotonically with the noise level of the image. As the noise corruption becomes more severe, the Gaussian filter requires a larger standard deviation (wider spatial support) to suppress the noise effectively.
+    \item For the least noisy images (Images 1 and 2), $\sigma = 0.1$ is optimal, meaning the filter acts nearly as an identity---preserving image details since there is little noise to remove.
+    \item For the moderately noisy images (Images 3 and 4), $\sigma = 1$ provides the best trade-off between noise removal and detail preservation.
+    \item For the most corrupted image (Image 5), $\sigma = 8$ is needed, resulting in heavy blurring. While this removes most noise, it also sacrifices fine image details---highlighting the fundamental limitation of Gaussian filtering, which cannot distinguish between noise and signal.
+    \item The curve shows a generally increasing trend, confirming that \textbf{higher noise levels demand stronger (wider) Gaussian smoothing} for optimal MSE performance.
+\end{itemize}
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{P01_curve.png}
+    \caption{Optimal Gaussian $\sigma$ vs image index (sorted by increasing noise level). The trend is monotonically increasing: noisier images require larger $\sigma$ for best MSE.}
+    \label{fig:p01_curve}
+\end{figure}
+
+
+
+%****Question 2****
+\questionheader{2. Experiment 2 -- Bilateral Filter}
+
+\begin{solution}
+The bilateral filter was applied to \texttt{noisybook.png} with parameters: filter size $k = 11$, spatial $\sigma_s = 1.5$, and range $\sigma_I = 0.1$. A Gaussian filter with $k = 11, \sigma = 1.5$ (matching the bilateral filter's spatial parameter) was used for comparison. The Gaussian $\sigma$ was varied and $\sigma = 1.5$ was selected as it gave a visually comparable level of denoising. Figure~\ref{fig:p02} shows the results.
+
+\textbf{Observations:}
+\begin{itemize}
+    \item Both filters successfully reduce the Gaussian noise present in the original noisy image.
+    \item The \textbf{bilateral filter preserves edges significantly better} than the Gaussian filter. The text edges in the book cover (``Digital Image Processing'') remain sharp and well-defined after bilateral filtering, whereas the Gaussian filter blurs them noticeably.
+\end{itemize}
+\end{solution}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{P02.png}
+    \caption{Comparison of bilateral and Gaussian filtering on \texttt{noisybook.png}. Left: noisy input. Center: bilateral filtered ($\sigma_s = 1.5$, $\sigma_r = 0.1$). Right: Gaussian filtered ($\sigma = 1.5$). The bilateral filter preserves text edges while the Gaussian filter blurs them.}
+    \label{fig:p02}
+\end{figure}
+
+
+
+\end{document}
