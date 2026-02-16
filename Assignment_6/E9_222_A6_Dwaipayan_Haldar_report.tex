@@ -1,0 +1,204 @@
+\documentclass[12pt,a4paper,onecolumn]{exam}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{tikz}
+\usepackage[skins]{tcolorbox}
+
+
+% --- Define our simple \questionheader command ---
+\newcommand{\questionheader}[1]{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=black,
+    coltext=white,
+    boxrule=0pt,
+    fontupper=\Large\bfseries,
+    arc=4mm
+  ]
+  #1
+  \end{tcolorbox}%
+}
+% --- End of definition ---
+\newtcolorbox{answerbox}[1]{
+  boxrule=0.4pt,
+  colback=white,
+  height=#1,
+}
+
+
+\usepackage[font = small]{caption}
+\usepackage{subcaption}
+
+\newenvironment{blanksolution}
+  {%
+    \renewcommand{\solutiontitle}{\noindent}%
+    \begin{solution}%
+  }%
+  {\end{solution}}
+\usepackage{listings}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily,
+    }
+
+\pagestyle{headandfoot}
+\runningheader{Assignment 6}{Signal Processing in Practice}{Dwaipayan Haldar}
+
+
+\begin{document}
+
+\begingroup
+    \centering
+    \LARGE E9 222 Signal Processing in Practice\\
+    \LARGE Assignment 6 \\[0.5em]
+    \large \today\\[0.5em]
+    \large Dwaipayan Haldar\par
+\endgroup
+\noindent\rule{\textwidth}{0.5pt}
+\printanswers
+\renewcommand{\solutiontitle}{\noindent\textbf{Ans:}\enspace}
+
+
+%==============================================================================
+\questionheader{1. Constant $k$ -- High Boost Filtering}
+%==============================================================================
+
+\begin{solution}
+
+Given an image $f(m,n)$, the high-boost sharpened image is
+\[
+  g(m,n) \;=\; f(m,n) \;+\; k\,\bigl[f(m,n) * h(m,n)\bigr],
+\]
+where $h$ is the Laplacian high-pass kernel
+\[
+  h = \begin{bmatrix} -1 & -1 & -1 \\ -1 & 8 & -1 \\ -1 & -1 & -1 \end{bmatrix},
+\]
+and $k$ is a constant gain factor. The output is clipped to $[0, 255]$ to handle saturation.
+
+Three constant values of $k$ were tested: $k \in \{1, 2, 4\}$. As $k$ increases, edges become progressively more emphasized. However, a large constant $k$ also amplifies noise in smooth/flat regions of the image, since the Laplacian response in those regions -- though small -- gets scaled up uniformly.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{P01a.png}
+  \caption{Constant $k$ sharpening on Image 1 (portrait). From left to right: original, $k=1$, $k=2$, $k=4$.}
+  \label{fig:p01a}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{P01b.png}
+  \caption{Constant $k$ sharpening on Image 2 (dog with Christmas tree). From left to right: original, $k=1$, $k=2$, $k=4$.}
+  \label{fig:p01b}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{P01c.png}
+  \caption{Constant $k$ sharpening on Image 3 (couple on beach). From left to right: original, $k=1$, $k=2$, $k=4$.}
+  \label{fig:p01c}
+\end{figure}
+
+As seen in the figures, increasing $k$ sharpens edges more aggressively, but at $k=4$ significant artifacts and noise amplification become visible, particularly in smooth regions such as skin and sky.
+
+\end{solution}
+
+\vspace{1em}
+
+%==============================================================================
+\questionheader{2. Spatially Varying $k(m,n)$ -- Adaptive High Boost Filtering}
+%==============================================================================
+
+\begin{solution}
+
+\subsection*{Motivation}
+
+A constant $k$ applies the same gain everywhere. This is sub-optimal because:
+\begin{itemize}
+  \item \textbf{Flat / smooth regions} (very small $|f*h|$): The Laplacian response here is predominantly noise. Amplifying it with a large $k$ would boost noise without improving perceptual sharpness.
+  \item \textbf{Moderate-gradient regions} (medium $|f*h|$): These correspond to weak or blurred edges -- precisely the regions that benefit most from sharpening. Here, $k$ should be large to enhance edge contrast.
+  \item \textbf{Strong edges} (large $|f*h|$): These edges are already perceptually sharp. Applying a large $k$ here risks overshooting -- creating halo artifacts and ringing around edges.
+\end{itemize}
+
+We therefore need a spatially varying gain $k(m,n)$ that is \emph{small for noise}, \emph{large for weak edges}, and \emph{moderate-to-small for strong edges}.
+
+\subsection*{Designed $k$ Function}
+
+Let $L(m,n) = f(m,n) * h(m,n)$ denote the Laplacian output. The adaptive gain is defined as:
+\[
+\boxed{k(m,n) \;=\; k_{\max} \;\cdot\; \underbrace{\frac{|L(m,n)|}{|L(m,n)| + T_1}}_{\text{noise suppression}} \;\cdot\; \underbrace{\exp\!\left(-\frac{|L(m,n)|}{T_2}\right)}_{\text{strong-edge roll-off}}}
+\]
+
+This function is a product of two factors:
+
+\begin{enumerate}
+  \item \textbf{Sigmoid-like noise gate} $\displaystyle\frac{|L|}{|L| + T_1}$: This factor is $\approx 0$ when $|L| \ll T_1$ (noise regime) and saturates to $\approx 1$ when $|L| \gg T_1$. It effectively suppresses gain in flat regions where the Laplacian magnitude is dominated by noise, preventing noise amplification.
+
+  \item \textbf{Exponential decay} $\displaystyle\exp\!\bigl(-|L|/T_2\bigr)$: This factor is $\approx 1$ for small-to-moderate $|L|$ and decays toward $0$ for large $|L|$. It reduces the gain at strong edges, preventing overshoot and halo artifacts.
+\end{enumerate}
+
+The combined curve rises from $0$ (noise), peaks at moderate Laplacian magnitudes (weak/blurred edges), and then decays for strong edges -- exactly the desired behaviour. The parameter $k_{\max}$ controls the overall maximum gain (set to $7.5$ in our experiments).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\textwidth]{P02_func.png}
+  \caption{The designed $k$ as a function of $|L|$. The curve rises from zero (suppressing noise), peaks at moderate Laplacian magnitudes (boosting weak edges), and decays for large magnitudes (avoiding overshoot at strong edges).}
+  \label{fig:kfunc}
+\end{figure}
+
+\subsection*{Selection of $T_1$ and $T_2$}
+
+Both thresholds are estimated adaptively from each image (per channel):
+
+\begin{itemize}
+  \item $\displaystyle T_1 = \hat{\sigma} = \frac{\mathrm{median}(|L|)}{0.6745}$: This is the \textbf{Median Absolute Deviation (MAD)} estimator of the noise standard deviation. The factor $0.6745$ normalizes the median of $|L|$ so that $\hat{\sigma}$ is a consistent estimator of $\sigma$ for Gaussian noise. Setting $T_1 = \hat{\sigma}$ means the sigmoid gate transitions around the noise level -- Laplacian magnitudes below the noise floor get suppressed, while those above it pass through. This is a robust, data-driven noise threshold.
+
+  \item $\displaystyle T_2 = P_{90}(|L|)$ (the $90^{\text{th}}$ percentile of $|L|$): This sets the decay scale at the strong-edge boundary. Only the top 10\% of Laplacian magnitudes (the strongest edges) experience significant decay. This ensures that moderate edges -- the primary targets of sharpening -- receive full gain, while only the most prominent edges are attenuated to avoid artifacts. Using a percentile makes $T_2$ adaptive to image content.
+\end{itemize}
+
+
+\subsection*{Results: Variable $k$ vs.\ Constant $k$}
+
+Figures~\ref{fig:p02a}--\ref{fig:p02c} compare the adaptive variable-$k$ result ($k_{\max}=7.5$) against a constant-$k$ result ($k=2$) for each image. The $k(m,n)$ heatmap is also shown, averaged over RGB channels.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{P02a.png}
+  \caption{Image 1 (portrait): Original, variable-$k$ result, $k(m,n)$ heatmap, constant $k=2$.}
+  \label{fig:p02a}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{P02b.png}
+  \caption{Image 2 (dog with Christmas tree): Original, variable-$k$ result, $k(m,n)$ heatmap, constant $k=2$.}
+  \label{fig:p02b}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{P02c.png}
+  \caption{Image 3 (couple on beach): Original, variable-$k$ result, $k(m,n)$ heatmap, constant $k=2$.}
+  \label{fig:p02c}
+\end{figure}
+
+\subsection*{Interpreting the $k(m,n)$ Heatmap}
+
+The $k(m,n)$ heatmaps confirm the intended behaviour of the adaptive gain:
+\begin{itemize}
+  \item \textbf{Dark regions} (low $k$) appear in smooth/flat areas (e.g., background walls, sky, skin) where the Laplacian response is primarily noise. The noise-gate term suppresses the gain here, preventing noise amplification.
+  \item \textbf{Bright regions} (high $k$) appear along moderate-contrast edges and textured regions (e.g., hair, clothing folds, facial features, foliage). These are the weak/blurred edges that benefit most from sharpening.
+  \item \textbf{Strong edges} (e.g., sharp object boundaries) have moderate $k$ values -- not the highest -- because the exponential decay term attenuates the gain there, preventing halo artifacts.
+\end{itemize}
+
+\subsection*{Comparison}
+
+The variable-$k$ sharpened images exhibit cleaner smooth regions (less noise than constant $k$) while still achieving strong edge enhancement. In contrast, the constant-$k$ result ($k=2$) either under-sharpens weak edges (if $k$ is too low) or amplifies noise in flat regions (if $k$ is too high). The spatially adaptive approach provides a better trade-off: it can use a higher effective $k_{\max}$ where needed (at weak edges) without the penalty of global noise amplification.
+
+\end{solution}
+
+
+\end{document}
