@@ -1,0 +1,114 @@
+\documentclass[11pt,a4paper,onecolumn]{exam}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{top=1.4cm, bottom=1.4cm, left=1.8cm, right=1.8cm}
+\usepackage{tikz}
+\usepackage[skins]{tcolorbox}
+
+\newcommand{\questionheader}[1]{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=black,
+    coltext=white,
+    boxrule=0pt,
+    fontupper=\bfseries,
+    arc=3mm,
+    top=1.5pt, bottom=1.5pt
+  ]
+  #1
+  \end{tcolorbox}%
+}
+
+\usepackage{caption}
+\usepackage{subcaption}
+
+\newenvironment{blanksolution}
+  {%
+    \renewcommand{\solutiontitle}{\noindent}%
+    \begin{solution}%
+  }%
+  {\end{solution}}
+
+\pagestyle{headandfoot}
+\runningheader{Assignment 7}{Signal Processing in Practice}{Dwaipayan Haldar}
+
+\begin{document}
+
+\begingroup
+    \centering
+    \LARGE E9 222 Signal Processing in Practice\\
+    \LARGE Assignment 7\\[0.5em]
+    \large \today\\[0.5em]
+    \large Dwaipayan Haldar\par
+\endgroup
+\noindent\rule{\textwidth}{0.5pt}
+\printanswers
+\renewcommand{\solutiontitle}{\noindent\textbf{Ans:}\enspace}
+\setlength{\parskip}{1pt}
+
+% ─────────────────────────────────────────────────────────────────
+\questionheader{Problem 1 (5 Marks): Train ResNet18 on 20 Base Classes}
+
+\noindent ResNet18 (no pretrained weights) was trained for 40 epochs on the first 20 classes of the Oxford-IIIT-Pet dataset using Adam with weight decay and a step LR scheduler.
+
+\vspace{2pt}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Test Accuracy on 20 base classes & 42.20\% \\
+Feature dimension $f$ & 512 \\
+Average feature norm $\frac{1}{N}\sum_{i=1}^{N}\|F_0(x_i)\|$ & 24.75 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────────────────────────
+\questionheader{Problem 2 (10 Marks): Incremental Learning — Expanded Classifier $G_1 \in \mathbb{R}^{37 \times f}$}
+
+\noindent The FC layer is expanded from $20\!\times\!512$ to $37\!\times\!512$, preserving original weights. \textbf{Setting 1} fine-tunes both $F$ and $G_1$ on only the new 17 classes. \textbf{Setting 2} freezes $F_0$ (backbone in \texttt{eval()} to preserve BatchNorm statistics) and trains only $G_1$ on all 37 classes — confirmed by \textbf{18,981 trainable} vs 11.2M total parameters.
+
+\vspace{2pt}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Total Acc.} & \textbf{Base 20 Acc.} & \textbf{New 17 Acc.} \\
+\midrule
+S1: Fine-tune $F + G_1$ (new 17 only) & 23.52\% & 0.00\% & 51.13\% \\
+S2: Frozen $F_0$, train $G_1$ (all 37) & 27.23\% & 32.86\% & 20.62\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{1pt}
+\noindent\textbf{Observation:} Setting 1 exhibits catastrophic forgetting — updating the backbone on only new-class data shifts its representations, collapsing base accuracy to 0\%. Setting 2 preserves base accuracy (32.86\%) by keeping $F_0$ frozen, but new-class accuracy is limited (20.62\%) as the backbone never saw new-class images.
+
+% ─────────────────────────────────────────────────────────────────
+\questionheader{Problem 3 (15 Marks): Mitigating Catastrophic Forgetting via Feature Distribution Replay}
+
+\noindent For each of the 20 base classes, the mean $\mu_c$ and full covariance $\Sigma_c$ of $F_0$ embeddings are computed. Five synthetic features per class are sampled as $\tilde{f} \sim \mathcal{N}(\mu_c,\,\Sigma_c + \epsilon I)$ ($\epsilon=10^{-4}$, 100 synthetic old-class samples total). $G_1$ is trained on these plus 1,695 real new-class feature vectors, with $F_0$ frozen.
+
+\vspace{2pt}
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Total Acc.} & \textbf{Base 20 Acc.} & \textbf{New 17 Acc.} \\
+\midrule
+P2-S1: Fine-tune $F+G_1$ (new only)        & 23.52\% & 0.00\%  & 51.13\% \\
+P2-S2: Frozen $F_0$, train $G_1$ (all 37)  & 27.23\% & 32.86\% & 20.62\% \\
+P3:\phantom{-S2} Frozen $F_0$ + replay     & 21.31\% & 5.50\%  & 39.87\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{1pt}
+\noindent\textbf{Observation:} Using a full covariance Gaussian (capturing inter-feature correlations) improves base accuracy over a diagonal approximation (5.50\% vs 1.11\%). Replay reduces forgetting vs S1 (base: 5.50\% vs 0.00\%) and yields higher new-class accuracy than S2 (39.87\% vs 20.62\%). However, base accuracy still lags S2 (32.86\%) due to class imbalance: 100 synthetic old-class samples against 1,695 real new-class samples biases the classifier toward new classes.
+
+\noindent\textbf{Why feature statistics suffice:} A trained backbone maps images to compact, near-Gaussian clusters in feature space. Storing only $\mu_c$ and $\Sigma_c$ per class — without any raw images — captures the class geometry well enough for a linear classifier to remain discriminative. This makes feature distribution replay both memory-efficient and privacy-preserving, while meaningfully mitigating forgetting.
+
+\end{document}
