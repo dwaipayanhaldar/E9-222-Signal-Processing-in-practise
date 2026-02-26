@@ -1,0 +1,205 @@
+\documentclass[12pt,a4paper,onecolumn]{exam}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{tikz}
+\usepackage[skins]{tcolorbox} % Use [skins] to get the rounded shape
+
+
+% --- Define our simple \questionheader command ---
+\newcommand{\questionheader}[1]{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=black,
+    coltext=white,
+    boxrule=0pt,
+    fontupper=\Large\bfseries,
+    arc=4mm
+  ]
+  #1
+  \end{tcolorbox}%
+}
+% --- End of definition ---
+\newtcolorbox{answerbox}[1]{
+  boxrule=0.4pt,   % Sets the thickness of the border
+  colback=white,   % Sets the background color
+  height=#1,       % <-- Use the first argument (#1) as the height
+}
+
+
+\usepackage[font = small]{caption}
+\usepackage{subcaption}
+
+\newenvironment{blanksolution}
+  {%
+    \renewcommand{\solutiontitle}{\noindent}%
+    \begin{solution}%
+  }%
+  {\end{solution}}
+\usepackage{listings}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily,
+    }
+
+\pagestyle{headandfoot}
+% \firstpageheader{Assignment 2}{}{Dwaipayan Haldar}
+\runningheader{Assignment 8}{Signal Processing in Practise}{Dwaipayan Haldar}
+
+\begin{document}
+
+\begingroup
+    \centering
+    \LARGE E9 222 Signal Processing in Practice\\
+    \LARGE Assignment 8\\[0.5em]
+    \large \today\\[0.5em]
+    \large Dwaipayan Haldar \par
+\endgroup
+\noindent\rule{\textwidth}{0.5pt}
+\printanswers
+\renewcommand{\solutiontitle}{\noindent\textbf{Ans:}\enspace}
+\setlength{\parskip}{1pt}
+
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\questionheader{Problem 1: MixUp — Interpolating Data for Robust Augmentation}
+
+\begin{solution}
+
+\noindent\textbf{Architecture:} SimpleCNN — Conv1(3$\to$32) $\to$ BN $\to$ ReLU $\to$ Pool $\to$ Conv2(32$\to$64) $\to$ BN $\to$ ReLU $\to$ Pool $\to$ FC1(4096$\to$128) $\to$ BN $\to$ ReLU $\to$ FC2(128$\to$10). Trained with Adam (lr=0.001), Cross-Entropy loss, 20 epochs on CIFAR-10 (normalised to $[-1,1]$).
+
+\vspace{4pt}
+\noindent\textbf{Accuracy Summary:}
+
+\begin{center}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lc}
+\toprule
+\textbf{Method} & \textbf{Test Accuracy} \\
+\midrule
+1.1 Raw (no augmentation) & 0.7392 \\
+1.2 All augmentations (HFlip + Crop + ColorJitter + Gaussian Noise) & 0.7214 \\
+\midrule
+1.3 Mixup $\alpha=0.1$ & 0.7334 \\
+1.3 Mixup $\alpha=0.2$ & 0.7346 \\
+1.3 Mixup $\alpha=0.4$ & \textbf{0.7556} \\
+1.3 Mixup $\alpha=1.0$ & 0.7530 \\
+\bottomrule
+\end{tabular}}
+\end{center}
+
+\vspace{4pt}
+\noindent\textbf{Problem 1.1 — Raw Training:}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\linewidth]{loss_curves_raw.png}
+    \caption{Training and validation loss — raw (no augmentation).}
+\end{figure}
+
+\noindent\textbf{Problem 1.2 — All Augmentations:}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\linewidth]{loss_curves_all_aug.png}
+    \caption{Training and validation loss — all augmentations combined.}
+\end{figure}
+
+\noindent\textbf{Problem 1.3 — Mixup ($\lambda \sim \mathrm{Beta}(\alpha,\alpha)$):}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_mixup_alpha_0.1.png}
+    \caption{$\alpha=0.1$}
+\end{subfigure}
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_mixup_alpha_0.2.png}
+    \caption{$\alpha=0.2$}
+\end{subfigure}\\[4pt]
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_mixup_alpha_0.4.png}
+    \caption{$\alpha=0.4$}
+\end{subfigure}
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_mixup_alpha_1.0.png}
+    \caption{$\alpha=1.0$}
+\end{subfigure}
+\caption{Mixup training and validation loss for different $\alpha$ values. Higher $\alpha$ raises train loss (stronger mixing) but narrows the train/val gap.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{mixup_visualization.png}
+    \caption{Mixup augmentation visualisation for $\alpha \in \{0.1, 0.2, 0.4, 1.0\}$. Each row shows the same 8 images blended with a random partner; $\alpha=1.0$ produces the most aggressive blending.}
+\end{figure}
+
+\noindent\textbf{Observations:}
+\begin{itemize}\setlength\itemsep{1pt}
+    \item The raw data clearly overfits. The validation curve diverges while the training loss converges. The augmentation reduces overfitting and give a more generalized performance. 
+    \item Traditional augmentation (1.2) \emph{hurts} accuracy vs.\ the raw baseline — aggressive spatial/colour transforms at training time increase noise without providing the interpolation-based regularisation that Mixup offers.
+    \item Mixup consistently \emph{outperforms} the raw baseline. Best accuracy is at $\alpha=0.4$ (0.7556), a $\sim$1.6\,pp gain over raw.
+    \item Small $\alpha$ ($0.1$, $0.2$) keeps $\lambda$ near 0 or 1, so mixing is mild — train loss stays low but val loss is higher (less regularisation). Larger $\alpha$ ($0.4$, $1.0$) increases the train/val loss gap but the \emph{val loss is lower}, indicating better generalisation.
+    \item $\alpha=1.0$ (Uniform mixing) performs slightly worse than $\alpha=0.4$, suggesting over-regularisation for this shallow network.
+\end{itemize}
+
+\end{solution}
+
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\questionheader{Problem 2: Manifold Mixup — Interpolation in Feature Space}
+
+\begin{solution}
+
+\noindent Manifold Mixup applies $\tilde{g}_k = \lambda\, g_k(x_i) + (1-\lambda)\, g_k(x_j)$, $\tilde{y} = \lambda y_i + (1-\lambda)y_j$ where $g_k$ is the output of the $k$-th hidden layer. The same SimpleCNN is used with $\alpha=0.2$; the final classification layer (FC2) is excluded from mixing.
+
+\vspace{4pt}
+\noindent\textbf{Layer key:} $k=1$: after Conv1+Pool; \;$k=2$: after Conv2+Pool; \;$k=3$: after FC1; \;$k=\text{random}$: uniformly random $k\in\{1,2,3\}$ per batch.
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+\textbf{Mixing Layer} & \textbf{Test Accuracy} \\
+\midrule
+$k=1$ (after Conv1) & \textbf{0.7522} \\
+$k=2$ (after Conv2) & 0.7419 \\
+$k=3$ (after FC1)   & 0.7429 \\
+$k=\text{random}$   & 0.7399 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_manifold_k1.png}
+    \caption{$k=1$ (after Conv1+Pool)}
+\end{subfigure}
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_manifold_k2.png}
+    \caption{$k=2$ (after Conv2+Pool)}
+\end{subfigure}\\[4pt]
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_manifold_k3.png}
+    \caption{$k=3$ (after FC1)}
+\end{subfigure}
+\begin{subfigure}[b]{0.48\linewidth}
+    \includegraphics[width=\linewidth]{loss_curves_manifold_krandom.png}
+    \caption{$k=\text{random}$}
+\end{subfigure}
+\caption{Training and validation loss for Manifold Mixup at each layer setting ($\alpha=0.2$).}
+\end{figure}
+
+\noindent\textbf{Observations:}
+\begin{itemize}\setlength\itemsep{1pt}
+    \item Mixing at the earliest hidden layer ($k=1$) gives the best accuracy (0.7522), comparable to input-space Mixup ($\alpha=0.4$: 0.7556). Earlier mixing acts closer to input Mixup, preserving low-level feature diversity.
+    \item Mixing at deeper layers ($k=2$, $k=3$) reduces accuracy slightly — at those stages, feature maps are more task-specific, so interpolation in that space is less natural and may produce out-of-manifold representations.
+    \item Random $k$ per batch performs worst among the four, likely because inconsistent mixing depth prevents the model from adapting its intermediate representations stably.
+    \item All Manifold Mixup variants outperform traditional augmentation (0.7214) and are competitive with raw training (0.7392).
+\end{itemize}
+
+\end{solution}
+
+\end{document}
