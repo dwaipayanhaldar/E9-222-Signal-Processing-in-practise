@@ -71,8 +71,7 @@ Average feature norm $\frac{1}{N}\sum_{i=1}^{N}\|F_0(x_i)\|$ & 24.75 \\
 % ─────────────────────────────────────────────────────────────────
 \questionheader{Problem 2 (10 Marks): Incremental Learning — Expanded Classifier $G_1 \in \mathbb{R}^{37 \times f}$}
 
-\noindent The FC layer is expanded from $20\!\times\!512$ to $37\!\times\!512$, preserving original weights. \textbf{Setting 1} fine-tunes both $F$ and $G_1$ on only the new 17 classes. \textbf{Setting 2} freezes $F_0$ (backbone in \texttt{eval()} to preserve BatchNorm statistics) and trains only $G_1$ on all 37 classes — confirmed by \textbf{18,981 trainable} vs 11.2M total parameters.
-
+\noindent The FC layer is expanded from $20\!\times\!512$ to $37\!\times\!512$, preserving original weights. \textbf{Setting 1} fine-tunes both $F$ and $G_1$ on only the new 17 classes. \textbf{Setting 2} freezes $F_0$ and trains only $G_1$ on new 17 classes and all 37 classes. 
 \vspace{2pt}
 \begin{center}
 \begin{tabular}{lccc}
@@ -80,13 +79,14 @@ Average feature norm $\frac{1}{N}\sum_{i=1}^{N}\|F_0(x_i)\|$ & 24.75 \\
 \textbf{Method} & \textbf{Total Acc.} & \textbf{Base 20 Acc.} & \textbf{New 17 Acc.} \\
 \midrule
 S1: Fine-tune $F + G_1$ (new 17 only) & 23.52\% & 0.00\% & 51.13\% \\
-S2: Frozen $F_0$, train $G_1$ (all 37) & 27.23\% & 32.86\% & 20.62\% \\
+S2: Frozen $F_0$, train $G_1$ (new 17 only) & 17.55\% & 0.00\% & 38.15\% \\
+S2: Frozen $F_0$, train $G_1$ (all 37) & 27.53\% & 32.41\% & 21.80\% \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \vspace{1pt}
-\noindent\textbf{Observation:} Setting 1 exhibits catastrophic forgetting — updating the backbone on only new-class data shifts its representations, collapsing base accuracy to 0\%. Setting 2 preserves base accuracy (32.86\%) by keeping $F_0$ frozen, but new-class accuracy is limited (20.62\%) as the backbone never saw new-class images.
+\noindent\textbf{Observation:} Setting 1 exhibits catastrophic forgetting — updating the backbone on only new-class data shifts its representations, collapsing base accuracy to 0\%. Setting 2 with only new data also exhibits the same effect with the base 20 class accuracy going to 0. Setting 2 if done will all the classes preserves base accuracy (32.86\%) by keeping $F_0$ frozen, but new-class accuracy is limited (20.62\%). This shows that replaying the old data is the only way to prevent catastrophic forgetting. Next part of the question shows even without replaying all the old data, information and accuracy can be preserved.
 
 % ─────────────────────────────────────────────────────────────────
 \questionheader{Problem 3 (15 Marks): Mitigating Catastrophic Forgetting via Feature Distribution Replay}
