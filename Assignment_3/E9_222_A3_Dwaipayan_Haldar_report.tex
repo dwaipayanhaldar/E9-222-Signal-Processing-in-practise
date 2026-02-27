@@ -1,0 +1,615 @@
+\documentclass[12pt,a4paper,onecolumn]{exam}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{geometry}
+\usepackage{tikz}
+\usepackage[skins]{tcolorbox}
+\usepackage{makecell}
+\usepackage{siunitx}
+\usepackage{caption}
+\usepackage{subcaption}
+\geometry{margin=1.8cm}
+
+% --- Define our simple \questionheader command ---
+\newcommand{\questionheader}[1]{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=black,
+    coltext=white,
+    boxrule=0pt,
+    fontupper=\Large\bfseries,
+    arc=4mm
+  ]
+  #1
+  \end{tcolorbox}%
+}
+
+% Colour helpers
+\definecolor{bestcol}{RGB}{198,239,206}   % light green -- best value
+\definecolor{warnred}{RGB}{255,199,206}   % light red -- worst / failure
+\newcommand{\best}[1]{\cellcolor{bestcol}\textbf{#1}}
+\newcommand{\bad}[1]{\cellcolor{warnred}#1}
+
+% Confusion-matrix helper: 2x2 tabular inside a table cell
+% Usage: \CM{TN}{FP}{FN}{TP}
+\newcommand{\CM}[4]{%
+  {\scriptsize\begin{tabular}{c|c}#1&#2\\\hline#3&#4\end{tabular}}%
+}
+
+\newenvironment{blanksolution}
+  {%
+    \renewcommand{\solutiontitle}{\noindent}%
+    \begin{solution}%
+  }%
+  {\end{solution}}
+\usepackage{listings}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    }
+
+\pagestyle{headandfoot}
+\runningheader{Assignment 3}{Signal Processing in Practise}{Dwaipayan Haldar}
+
+\begin{document}
+
+\begingroup
+    \centering
+    \LARGE E9 222 Signal Processing in Practice\\
+    \LARGE Assignment 3 \\[0.5em]
+    \large \today\\[0.5em]
+    \large Dwaipayan Haldar \par
+\endgroup
+\noindent\rule{\textwidth}{0.5pt}
+\printanswers
+\renewcommand{\solutiontitle}{\noindent\textbf{Ans:}\enspace}
+\setlength{\parskip}{3pt}
+
+% =========================================================
+%  EXPERIMENTAL SETUP
+% =========================================================
+\section*{Experimental Setup}
+
+\noindent\textbf{Hardware.}
+All experiments were run on an Apple Mac M4 with 16\,GB unified memory and 512\,GB SSD.
+Neural network training used Apple's Metal Performance Shaders (MPS) backend via PyTorch.
+
+\noindent\textbf{Dataset.}
+A subset of Torgo Dysarthric Speech Dataset is taken that provides 400 clean speech recordings
+(200 per class): \emph{Control} (healthy) speakers labelled 1 and
+\emph{Dysarthric} speakers labelled 0. An 80/20 stratified split yields 320 training and 80 test samples per class.
+All audio is resampled to 16\,kHz, mono.
+
+\noindent\textbf{Classifiers.}
+Four classifiers are evaluated throughout:
+\begin{itemize}\setlength\itemsep{0pt}
+  \item \textbf{SVM (STFT)} --- SVM with RBF kernel on the mean STFT magnitude spectrum (each frequency bin averaged over time).
+  \item \textbf{SVM (MFCC)} --- SVM with RBF kernel on concatenated mean and std of 13 MFCC coefficients.
+  \item \textbf{Conv1D} --- 1-D convolutional network on log-magnitude spectrogram frames; trained for 50 epochs, batch size 32, Adam optimiser.
+  \item \textbf{LSTM} --- Bidirectional LSTM on log-magnitude spectrogram frames; same training protocol.
+\end{itemize}
+Other than this a linear and non-linear model was tried with the clean audio dataset, that gives poor results for the clean case, hence discarded. 
+
+\noindent\textbf{Denoisers (Section~3.3).}
+Five methods are compared:
+Wiener filter (parametric, frame-by-frame),
+Spectral Subtraction (over-subtraction, $\beta=2$),
+MMSE-STSA estimator,
+Facebook Denoiser (DNS-64, deep-learning),
+and VoiceFixer (mode 0, joint denoising + dereverberation, deep-learning).
+
+\noindent\textbf{Confusion-matrix notation.}
+Throughout this report CMs are written as \CM{TN}{FP}{FN}{TP}
+where Healthy = Positive (1), Dysarthric = Negative (0).\\
+\phantom{123}
+
+% =========================================================
+%  SECTION 3.1
+% =========================================================
+\questionheader{Section 3.1 --- Clean-Audio Classification}
+
+\noindent\textbf{Rationale:}
+This section establishes a performance \emph{ceiling}: classifiers trained and tested on
+clean, studio-quality audio with no additive noise or reverberation.
+These models are saved and reused as ``zero-shot'' baselines in Sections~3.3 and~3.5.
+
+\begin{table}[H]
+\centering
+\caption{Section 3.1 --- Classification accuracy on clean audio (80 test samples).
+CM cells: top row = TN\,|\,FP, bottom row = FN\,|\,TP, where Healthy\,=\,Positive.}
+\label{tab:31}
+\begin{tabular}{llcc}
+\toprule
+\textbf{Classifier} & \textbf{Feature} & \textbf{Test Acc.} & \textbf{Confusion Matrix} \\
+\midrule
+SVM            & STFT mean spectrum   & \best{92.50\%} & \CM{38}{3}{3}{36} \\[4pt]
+SVM            & MFCC (13 coef.)      & \best{86.25\%} & \CM{32}{9}{2}{37} \\[4pt]
+Linear MLP     & Log-spectrogram      & 76.25\%        & \CM{24}{17}{2}{37} \\[4pt]
+Non-linear MLP & Log-spectrogram      & 81.25\%        & \CM{29}{12}{8}{31} \\[4pt]
+Conv1D         & Log-spectrogram      & \best{95.00\%} & \CM{37}{4}{0}{39} \\[4pt]
+LSTM           & Log-spectrogram      & \best{92.50\%} & \CM{36}{5}{2}{37} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Key observations.}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{Conv1D (95\%)} is the best model with zero false negatives --- no dysarthric speaker is missed.
+  \item LSTM and SVM-STFT both reach 92.5\%; SVM-MFCC lags at 86.25\%.
+  \item Linear/non-linear MLPs underperform, confirming that temporal or spectral structure captured by Conv1D/LSTM is important.
+  \item Clean-audio results set the upper bound; degradation in subsequent sections measures the cost of noise and reverberation.
+\end{itemize}
+\phantom{123}
+
+% =========================================================
+%  SECTION 3.2
+% =========================================================
+\questionheader{Section 3.2 --- Noisy-Audio Classification}
+
+\noindent\textbf{Rationale:}
+Noise is added at three SNR levels ($-10$, $-5$, $0$~dB) using five real-world noise types:
+\emph{White} (flat spectrum), \emph{Pink} (1/f spectrum), \emph{Babble}
+(non-stationary speech interference), \emph{Machine-gun (MG)} (impulsive),
+and \emph{Factory} (stationary machinery).
+This gives 960 noisy training files (3 SNR $\times$ 320) and 240 noisy test files per noise type (3 SNR $\times$ 80).
+Classifiers are trained and evaluated on matched noisy data.
+
+\begin{table}[H]
+\centering
+\caption{Section 3.2 --- Test accuracy (\%) under five noise types (240 test samples per noise, 3 SNR levels: $-10$, $-5$, $0$~dB).}
+\label{tab:32}
+\small\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Noise Type} & \textbf{SVM (STFT)} & \textbf{SVM (MFCC)} & \textbf{Conv1D} & \textbf{LSTM} & \textbf{Best} \\
+\midrule
+White         & \best{92.50\%} & 70.42\%        & 88.75\%        & \best{90.83\%}        & SVM (STFT) \\
+Pink          & \best{89.17\%} & 77.92\%        & 85.00\%        & 83.33\%        & SVM (STFT) \\
+Babble        & 82.50\%        & 82.50\%        & \best{94.17\%} & \best{92.08\%}        & Conv1D \\
+Machine Gun   & 82.92\%        & 83.75\%        & 78.75\%        & \best{84.17\%} & LSTM \\
+Factory       & 81.67\%        & 74.17\%        & 81.67\%        & 79.58\%        & \makecell{SVM (STFT) /\\ Conv1D} \\
+\midrule
+\textbf{Average} & 85.75\% & 77.75\% & 85.67\% & \best{86.00\%} & LSTM (overall) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Key observations.}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{White noise} is the easiest condition (SVM-STFT 92.5\%, matching clean-audio performance). Its flat spectrum does not distort relative spectral shape.
+  \item \textbf{Babble noise} is hard for SVMs but easy for Conv1D (94.17\%); the network learns to suppress non-stationary interference through its convolutional filters.
+  \item \textbf{Machine-gun noise} (impulsive, bursty) benefits LSTM, whose temporal gating discards spike events selectively.
+  \item \textbf{SVM (MFCC)} degrades most strongly under spectrally coloured noise (White: 70\%, Factory: 74\%) since MFCC conflates noise colouration with speech content.
+  \item \textbf{LSTM wins on average} (86\%) --- its temporal memory handles diverse noise statistics better than any static-feature method.
+\end{itemize}
+
+\phantom{123}
+
+% =========================================================
+%  SECTION 3.3
+% =========================================================
+\questionheader{Section 3.3 --- Denoised-Audio Classification}
+
+\noindent\textbf{Rationale:}
+Five denoisers are applied to the noisy test sets from Section~3.2 (covering all three SNR levels: $-10$, $-5$, $0$~dB; 240 test files per noise type).
+\emph{Clean-trained classifiers} from Section~3.1 are then evaluated on the denoised audio
+without retraining --- a zero-shot deployment scenario.
+Audio quality of each denoiser is measured independently with PESQ, SNR, SSNR, STOI, and SRMR. As VoiceFixer is too heavy tool, to reduce computations the denoised data was not trained again. The denoised data if trained would give more accuracy than this. 
+
+\subsection*{3.3a --- Denoiser Audio Quality (25 noise-denoiser combinations)}
+
+\begin{table}
+\centering
+\caption{Denoiser audio-quality metrics averaged over 240 test files.
+PESQ $\in[1,4.5]$ (higher better), STOI $\in[0,1]$ (higher better),
+SNR and SSNR in dB (higher better). Green = best per noise type.}
+\label{tab:33_metrics}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llrrrrr}
+\toprule
+\textbf{Noise} & \textbf{Denoiser} & \textbf{PESQ} & \textbf{SNR (dB)} & \textbf{SSNR (dB)} & \textbf{STOI} & \textbf{SRMR} \\
+\midrule
+\multirow{5}{*}{White}
+ & Wiener         & 1.275 &  7.11 & $-2.79$ & 0.492 & 11.97 \\
+ & Spectral Sub.  & 1.156 &  3.19 & $-5.70$ & 0.488 &  9.35 \\
+ & MMSE           & 1.227 &  4.48 & $-5.14$ & 0.492 & 13.06 \\
+ & \best{Facebook}& \best{1.448} & \best{8.49} & \best{0.93} & \best{0.557} & \best{23.60} \\
+ & VoiceFixer     & 1.372 & $-5.32$ & $-2.92$ & 0.531 & 22.45 \\
+\midrule
+\multirow{5}{*}{Babble}
+ & Wiener         & 1.113 & $-1.53$ & $-0.68$ & 0.574 &  2.44 \\
+ & Spectral Sub.  & 1.131 & $-1.95$ & $-0.33$ & 0.607 &  1.89 \\
+ & MMSE           & 1.186 & $-1.19$ & $-1.28$ & 0.598 &  3.34 \\
+ & \best{Facebook}& \best{1.470} & \best{10.02} & \best{2.78} & \best{0.679} & \best{16.08} \\
+ & VoiceFixer     & 1.448 & $-6.19$ & $-2.21$ & 0.575 & 19.22 \\
+\midrule
+\multirow{5}{*}{Pink}
+ & Wiener         & 1.281 &  5.63 & $-3.13$ & 0.450 &  9.16 \\
+ & Spectral Sub.  & 1.155 &  2.56 & $-5.81$ & 0.447 &  5.63 \\
+ & MMSE           & 1.235 &  3.71 & $-5.35$ & 0.457 &  9.28 \\
+ & \best{Facebook}& \best{1.259} & \best{7.83} & \best{1.30} & \best{0.534} & \best{22.32} \\
+ & VoiceFixer     & 1.361 & $-5.01$ & $-2.55$ & 0.512 & 21.70 \\
+\midrule
+\multirow{5}{*}{Machine Gun}
+ & \best{Wiener}  & \best{1.167} & \best{3.02} & $-4.25$ & \best{0.414} &  7.20 \\
+ & Spectral Sub.  & 1.142 &  0.87 & $-6.07$ & 0.423 &  4.98 \\
+ & MMSE           & 1.198 &  0.90 & $-6.03$ & 0.422 &  7.41 \\
+ & Facebook       & 1.134 &  2.33 & $-3.34$ & 0.365 & 15.30 \\
+ & VoiceFixer     & 1.178 & $-3.06$ & \best{$-3.23$} & 0.377 & \best{17.89} \\
+\midrule
+\multirow{5}{*}{Factory}
+ & Wiener         & 1.121 &  4.10 & $-3.42$ & 0.419 &  8.19 \\
+ & Spectral Sub.  & 1.104 &  1.70 & $-5.74$ & 0.422 &  5.37 \\
+ & MMSE           & 1.145 &  2.13 & $-5.52$ & 0.423 &  8.55 \\
+ & \best{Facebook}& \best{1.165} & \best{6.78} & \best{0.53} & \best{0.493} & \best{19.94} \\
+ & VoiceFixer     & 1.293 & $-4.19$ & $-2.32$ & 0.457 & 18.71 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Audio-quality observations:}
+Facebook Denoiser achieves the best PESQ, SNR, SSNR, and STOI for White, Babble, Pink, and Factory noise.
+VoiceFixer produces negative SNR across all conditions --- its mode-0 joint dereverberation aggressively reshapes the spectrum, introducing artefacts.
+Spectral Subtraction has the lowest PESQ/SSNR due to musical-noise artefacts.
+Machine-gun noise is the hardest for all denoisers.
+
+\subsection*{3.3b --- Classification Accuracy on Denoised Audio}
+
+\begin{table}[H]
+\centering
+\caption{Section 3.3 --- Accuracy (\%) per denoiser for each noise type (240 test samples per cell).
+Green = best denoiser for that classifier; red = collapse below chance.}
+\label{tab:33_acc}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llccccc}
+\toprule
+\textbf{Noise} & \textbf{Classifier} & \textbf{Wiener} & \textbf{Spec.\ Sub.} & \textbf{MMSE} & \textbf{Facebook} & \textbf{VoiceFixer} \\
+\midrule
+\multirow{4}{*}{White}
+ & SVM (STFT) & \best{91.67\%} & 76.67\% & 82.50\% & \best{91.67\%} & 85.00\% \\
+ & SVM (MFCC) & 50.00\%        & 48.75\% & 48.75\% & 52.08\% & 50.83\% \\
+ & Conv1D     & 80.00\%        & \best{87.92\%} & 86.67\% & 75.00\% & \bad{48.75\%} \\
+ & LSTM       & \best{83.33\%} & 67.92\% & 70.83\% & 75.42\% & \bad{46.67\%} \\
+\midrule
+\multirow{4}{*}{Babble}
+ & SVM (STFT) & 61.67\% & 60.42\% & 61.67\% & \best{91.67\%} & 79.58\% \\
+ & SVM (MFCC) & 51.25\% & 52.08\% & \best{52.50\%} & 51.25\% & 52.08\% \\
+ & Conv1D     & 76.25\% & 81.25\% & 82.08\% & \best{86.67\%} & \bad{48.33\%} \\
+ & LSTM       & 79.17\% & 79.58\% & 81.25\% & \best{86.25\%} & \bad{47.50\%} \\
+\midrule
+\multirow{4}{*}{Pink}
+ & SVM (STFT) & 83.75\% & 72.50\% & 80.83\% & \best{92.50\%} & 80.00\% \\
+ & SVM (MFCC) & 50.42\% & 48.75\% & 48.75\% & \best{51.25\%} & 50.42\% \\
+ & Conv1D     & 76.25\% & 85.83\% & \best{86.25\%} & 80.83\% & \bad{47.50\%} \\
+ & LSTM       & \best{89.58\%} & 73.75\% & 76.67\% & 77.92\% & \bad{46.25\%} \\
+\midrule
+\multirow{4}{*}{MG}
+ & SVM (STFT) & 72.50\% & 72.08\% & \best{74.58\%} & 66.67\% & \bad{54.17\%} \\
+ & SVM (MFCC) & 52.08\% & \best{69.17\%} & 67.92\% & 51.25\% & \bad{29.58\%} \\
+ & Conv1D     & 80.42\% & \best{85.00\%} & 83.33\% & 76.25\% & \bad{29.17\%} \\
+ & LSTM       & \best{82.50\%} & 81.25\% & 80.42\% & 80.42\% & \bad{32.50\%} \\
+\midrule
+\multirow{4}{*}{Factory}
+ & SVM (STFT) & 79.58\% & 68.33\% & 73.33\% & \best{91.25\%} & 65.83\% \\
+ & SVM (MFCC) & 49.17\% & 49.17\% & 49.58\% & \best{51.25\%} & \bad{40.00\%} \\
+ & Conv1D     & 79.58\% & \best{83.75\%} & 80.42\% & 79.17\% & \bad{38.75\%} \\
+ & LSTM       & \best{77.50\%} & 71.67\% & 70.83\% & \best{77.50\%} & \bad{34.17\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Best denoiser per noise type and classifier.}
+\label{tab:33_best}
+\setlength{\tabcolsep}{7pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Noise} & \textbf{SVM (STFT)} & \textbf{SVM (MFCC)} & \textbf{Conv1D} & \textbf{LSTM} \\
+\midrule
+White   & Wiener / Facebook & Facebook     & Spec.\ Sub. & Wiener \\
+Babble  & Facebook          & MMSE         & Facebook    & Facebook \\
+Pink    & Facebook          & Facebook     & MMSE        & Wiener \\
+MG      & MMSE              & Spec.\ Sub.  & Spec.\ Sub. & Wiener \\
+Factory & Facebook          & Facebook     & Spec.\ Sub. & Wiener / Facebook \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Confusion matrices for SVM (STFT) across all denoisers (240 test samples).
+Each inner cell: row 1 = TN$|$FP, row 2 = FN$|$TP.}
+\label{tab:33_cm}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|ccccc}
+\toprule
+\textbf{Noise} & \textbf{Wiener} & \textbf{Spec.\ Sub.} & \textbf{MMSE} & \textbf{Facebook} & \textbf{VoiceFixer} \\
+\midrule
+White   & \CM{120}{3}{17}{100}  & \CM{70}{53}{3}{114}   & \CM{85}{38}{4}{113}   & \CM{115}{8}{12}{105} & \CM{95}{28}{8}{109} \\[5pt]
+Babble  & \CM{59}{64}{28}{89}   & \CM{53}{70}{25}{92}   & \CM{53}{70}{22}{95}   & \CM{110}{13}{7}{110} & \CM{90}{33}{16}{101} \\[5pt]
+Pink    & \CM{107}{16}{23}{94}  & \CM{60}{63}{3}{114}   & \CM{82}{41}{5}{112}   & \CM{116}{7}{11}{106} & \CM{87}{36}{12}{105} \\[5pt]
+MG      & \CM{79}{44}{22}{95}   & \CM{60}{63}{4}{113}   & \CM{69}{54}{7}{110}   & \CM{52}{71}{9}{108}  & \CM{23}{100}{10}{107} \\[5pt]
+Factory & \CM{85}{38}{11}{106}  & \CM{49}{74}{2}{115}   & \CM{63}{60}{4}{113}   & \CM{111}{12}{9}{108} & \CM{55}{68}{14}{103} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Confusion matrices for Conv1D across all denoisers (240 test samples).
+Each inner cell: row 1 = TN$|$FP, row 2 = FN$|$TP.}
+\label{tab:33_cm_conv1d}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|ccccc}
+\toprule
+\textbf{Noise} & \textbf{Wiener} & \textbf{Spec.\ Sub.} & \textbf{MMSE} & \textbf{Facebook} & \textbf{VoiceFixer} \\
+\midrule
+White   & \CM{76}{47}{1}{116}   & \CM{105}{18}{11}{106} & \CM{105}{18}{14}{103} & \CM{63}{60}{0}{117}  & \CM{98}{25}{98}{19} \\[5pt]
+Babble  & \CM{90}{33}{24}{93}   & \CM{100}{23}{22}{95}  & \CM{108}{15}{28}{89}  & \CM{91}{32}{0}{117}  & \CM{105}{18}{106}{11} \\[5pt]
+Pink    & \CM{66}{57}{0}{117}   & \CM{107}{16}{18}{99}  & \CM{110}{13}{20}{97}  & \CM{77}{46}{0}{117}  & \CM{95}{28}{98}{19} \\[5pt]
+MG      & \CM{78}{45}{2}{115}   & \CM{114}{9}{27}{90}   & \CM{118}{5}{35}{82}   & \CM{68}{55}{2}{115}  & \CM{31}{92}{78}{39} \\[5pt]
+Factory & \CM{74}{49}{0}{117}   & \CM{109}{14}{25}{92}  & \CM{112}{11}{36}{81}  & \CM{73}{50}{0}{117}  & \CM{65}{58}{89}{28} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Confusion matrices for LSTM across all denoisers (240 test samples).
+Each inner cell: row 1 = TN$|$FP, row 2 = FN$|$TP.}
+\label{tab:33_cm_lstm}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|ccccc}
+\toprule
+\textbf{Noise} & \textbf{Wiener} & \textbf{Spec.\ Sub.} & \textbf{MMSE} & \textbf{Facebook} & \textbf{VoiceFixer} \\
+\midrule
+White   & \CM{97}{26}{14}{103}  & \CM{116}{7}{70}{47}   & \CM{116}{7}{63}{54}   & \CM{90}{33}{26}{91}  & \CM{79}{44}{84}{33} \\[5pt]
+Babble  & \CM{115}{8}{42}{75}   & \CM{115}{8}{41}{76}   & \CM{114}{9}{36}{81}   & \CM{104}{19}{14}{103}& \CM{98}{25}{101}{16} \\[5pt]
+Pink    & \CM{99}{24}{1}{116}   & \CM{116}{7}{56}{61}   & \CM{117}{6}{50}{67}   & \CM{91}{32}{21}{96}  & \CM{78}{45}{84}{33} \\[5pt]
+MG      & \CM{94}{29}{13}{104}  & \CM{116}{7}{38}{79}   & \CM{115}{8}{39}{78}   & \CM{96}{27}{20}{97}  & \CM{24}{99}{63}{54} \\[5pt]
+Factory & \CM{88}{35}{19}{98}   & \CM{115}{8}{60}{57}   & \CM{115}{8}{62}{55}   & \CM{88}{35}{19}{98}  & \CM{45}{78}{80}{37} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Key observations.}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{Facebook Denoiser} is the best all-around denoiser for SVM-STFT classification (best on 3 of 5 noise types) and also tops all objective metrics.
+  \item \textbf{VoiceFixer collapses all deep classifiers} --- Conv1D and LSTM drop to 30--50\%.
+    Its spectral artefacts are incompatible with the clean-domain decision boundaries of pre-trained models.
+  \item \textbf{SVM (MFCC) never exceeds 70\%} regardless of denoiser --- cepstral features are not robust to residual noise after denoising.
+  \item \textbf{Wiener filter excels for LSTM} (best on 3/5 noise types) --- its smooth Wiener output preserves temporal envelope structure that LSTM exploits.
+  \item \textbf{Babble noise:} only Facebook restores SVM-STFT performance (61\%\,$\to$\,92\%);
+    classical denoisers fail on this non-stationary noise.
+  \item \textbf{Machine-gun noise} is the hardest: even the best combination (Conv1D + Spec.\ Sub.) reaches only 85\%.
+\end{itemize}
+
+\subsection*{3.3c --- Visual: Log-Spectrogram Comparison (White Noise Pipeline)}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{spectrogram_healthy.png}
+\caption{Log-magnitude spectrogram comparison for a \textbf{healthy (control)} speaker under white noise
+  (0\,dB SNR) across six stages.
+  \emph{Clean:} sharp harmonic bands at a particular voice segment.
+  \emph{White noise:} uniform noise floor buries speech structure across all frequencies.
+  \emph{Noisy speech (0\,dB):} speech harmonics barely discernible above the noise.
+  \emph{Wiener:} partial restoration; residual noise floor remains, but spectral envelope is recovered to some extent for lower frequencies
+  \emph{Facebook Denoiser:} harmonic bands well-recovered, closest to clean; confirms top PESQ/SNR scores.
+  \emph{VoiceFixer:} This is also good recovery. But it introduces high frequency terms which were not present earlier.}
+\label{fig:spec_healthy}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{spectrogram_dysarthric.png}
+\caption{Same six-stage pipeline for a \textbf{dysarthric} speaker.
+  VoiceFixer performs the poorest on this retaining almost no information. Again Facebook denoiser recovers the signal best.}
+\label{fig:spec_dysarthric}
+\end{figure}
+
+
+% =========================================================
+%  SECTION 3.4
+% =========================================================
+\questionheader{Section 3.4 --- Reverberant Speech Classification}
+
+\noindent\textbf{Rationale:}
+RIRs are convolved with clean speech
+(linear convolution via FFT, peak-normalised, length-matched to the original).
+Three RIR conditions of increasing RIRs are used:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Condition} & \textbf{RIR file (abbreviated)} & \textbf{Mic.\ placement} \\
+\midrule
+Small Room  & \texttt{rir\_smallroom1\_far\_anglb}  & Far \\
+Medium Room & \texttt{rir\_mediumroom1\_near\_angla} & Near \\
+Large Room  & \texttt{rir\_largeroom1\_far\_angla}  & Far \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Classifiers are trained and tested on matched reverberant data (320 train / 80 test each).
+
+\begin{table}[H]
+\centering
+\caption{Section 3.4 --- Accuracy and confusion matrices for reverberant speech (80 test samples each).
+CM cells: top row = TN\,|\,FP, bottom row = FN\,|\,TP.}
+\label{tab:34}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|cc|cc|cc}
+\toprule
+ & \multicolumn{2}{c|}{\textbf{Small Room}} & \multicolumn{2}{c|}{\textbf{Medium Room}} & \multicolumn{2}{c}{\textbf{Large Room}} \\
+\textbf{Classifier} & \textbf{Acc.} & \textbf{CM} & \textbf{Acc.} & \textbf{CM} & \textbf{Acc.} & \textbf{CM} \\
+\midrule
+SVM (STFT) & \best{96.25\%} & \CM{38}{3}{0}{39} & \best{92.50\%} & \CM{36}{5}{1}{38} & 88.75\% & \CM{35}{6}{3}{36} \\[5pt]
+SVM (MFCC) & 87.50\%        & \CM{32}{9}{1}{38} & 85.00\%        & \CM{31}{10}{2}{37} & 86.25\% & \CM{31}{10}{1}{38} \\[5pt]
+Conv1D     & 85.00\%        & \CM{33}{8}{4}{35} & 87.50\%        & \CM{38}{3}{7}{32} & 85.00\% & \CM{29}{12}{0}{39} \\[5pt]
+LSTM       & \best{93.75\%}        & \CM{36}{5}{0}{39} & \best{92.50\%}        & \CM{39}{2}{4}{35} & \best{90.00\%} & \CM{36}{5}{3}{36} \\
+\midrule
+\textbf{Best} & \multicolumn{2}{c|}{SVM (STFT)} & \multicolumn{2}{c|}{SVM (STFT) / LSTM} & \multicolumn{2}{c}{LSTM} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Key observations.}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{SVM (STFT) excels in small and medium rooms} (96.25\%, 92.50\%).
+    It achieves \emph{zero false negatives} in the small room --- no dysarthric speaker is missed.
+    Early reflections appear as harmonic modulation in the mean STFT vector, separable by the RBF kernel.
+  \item \textbf{LSTM is the most robust} across room sizes (93.75\%\,$\to$\,92.50\%\,$\to$\,90.00\%, only 3.75\,pp degradation). Its temporal gating attenuates late-arriving echoes without losing phonemic information.
+  \item \textbf{Large room degrades all classifiers}, most notably SVM-STFT ($-7.5$\,pp vs.\ small room). Longer RIR smears successive phonemes, reducing inter-class spectral distance.
+  \item \textbf{Conv1D in the large room} (CM = \CM{29}{12}{0}{39}): zero false negatives but 12 false positives. It over-classifies healthy speakers as dysarthric, yet never misses a dysarthric speaker.
+  \item All models substantially outperform random (50\%), confirming that reverberant speech retains discriminative content even at far-field distances.
+\end{itemize}
+
+
+% =========================================================
+%  SECTION 3.5
+% =========================================================
+\questionheader{Section 3.5 --- Dereverberation + Classification}
+
+\noindent\textbf{Rationale:}
+VoiceFixer (mode~0) is applied to the reverberant audio from Section~3.4.
+Two classification strategies are compared:
+
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{Approach~1 (Zero-shot)} --- Clean-trained models from Section~3.1 are applied
+    directly to VoiceFixer-dereverbed audio without retraining.
+    Tests whether pre-trained classifiers generalise across the pipeline.
+  \item \textbf{Approach~2 (Matched training)} --- New classifiers are trained on VoiceFixer-dereverbed
+    training data and tested on dereverbed test data.
+    Isolates classification capacity on the new audio distribution.
+\end{itemize}
+
+\subsection*{Approach 1 --- Clean Pre-trained Models on Dereverbed Audio}
+
+\begin{table}[H]
+\centering
+\caption{Section 3.5 Approach~1 --- clean Section~3.1 models applied to VoiceFixer output, no retraining (80 test samples per condition).}
+\label{tab:35a1}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|cc|cc|cc}
+\toprule
+ & \multicolumn{2}{c|}{\textbf{Small Room}} & \multicolumn{2}{c|}{\textbf{Medium Room}} & \multicolumn{2}{c}{\textbf{Large Room}} \\
+\textbf{Classifier} & \textbf{Acc.} & \textbf{CM} & \textbf{Acc.} & \textbf{CM} & \textbf{Acc.} & \textbf{CM} \\
+\midrule
+SVM (STFT) & \best{83.75\%} & \CM{32}{9}{4}{35}  & \best{81.25\%}       & \CM{28}{13}{2}{37} & \best{76.25\%} & \CM{30}{11}{8}{31} \\[5pt]
+SVM (MFCC) & \bad{50.00\%}  & \CM{39}{2}{38}{1}  & \bad{50.00\%} & \CM{39}{2}{38}{1}  & \bad{50.00\%} & \CM{38}{3}{37}{2} \\[5pt]
+Conv1D     & \bad{43.75\%}  & \CM{32}{9}{36}{3}  & \bad{41.25\%} & \CM{30}{11}{36}{3} & \bad{50.00\%} & \CM{29}{12}{28}{11} \\[5pt]
+LSTM       & \bad{43.75\%}  & \CM{32}{9}{36}{3}  & \bad{46.25\%} & \CM{30}{11}{32}{7} & 51.25\%       & \CM{28}{13}{26}{13} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Approach~1 observations.}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{SVM (STFT) is the only classifier that transfers} (76--84\%). Its mean-spectrum boundary is partially invariant to VoiceFixer's bandwidth shaping.
+  \item \textbf{SVM (MFCC), Conv1D, and LSTM collapse to chance} ($\approx$43--50\%). Near-zero TP in their CMs reveals almost all dysarthric speakers are predicted as healthy --- complete domain mismatch.
+  \item \textbf{Domain adaptation or retraining is mandatory} whenever the audio processing pipeline changes significantly.
+  \item \textbf{Comparison with denoiser based techniques} In almost all the denoiser based techniques the best combination gave around 90\% accuracy but for dereverbed audio that is not the case, though SVM (STFT) performs decent but not that much.
+\end{itemize}
+
+\subsection*{Approach 2 --- Train on Dereverbed Data}
+
+\begin{table}[H]
+\centering
+\caption{Section 3.5 Approach~2 --- classifiers trained on VoiceFixer-dereverbed training audio,
+tested on dereverbed test audio (80 test samples per condition).}
+\label{tab:35a2}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|cc|cc|cc}
+\toprule
+ & \multicolumn{2}{c|}{\textbf{Small Room}} & \multicolumn{2}{c|}{\textbf{Medium Room}} & \multicolumn{2}{c}{\textbf{Large Room}} \\
+\textbf{Classifier} & \textbf{Acc.} & \textbf{CM} & \textbf{Acc.} & \textbf{CM} & \textbf{Acc.} & \textbf{CM} \\
+\midrule
+SVM (STFT) & 82.50\%        & \CM{30}{11}{3}{36} & \best{86.25\%} & \CM{32}{9}{2}{37} & 77.50\% & \CM{32}{9}{9}{30} \\[5pt]
+SVM (MFCC) & 57.50\%        & \CM{17}{24}{10}{29}& 56.25\% & \CM{18}{23}{12}{27} & \bad{50.00\%} & \CM{18}{23}{17}{22} \\[5pt]
+Conv1D     & 73.75\%        & \CM{30}{11}{10}{29}& 71.25\% & \CM{29}{12}{11}{28} & \bad{48.75\%} & \CM{0}{41}{0}{39} \\[5pt]
+LSTM       & \best{93.75\%} & \CM{40}{1}{4}{35}  & 77.50\% & \CM{32}{9}{9}{30}   & \best{86.25\%} & \CM{37}{4}{7}{32} \\
+\midrule
+\textbf{Best} & \multicolumn{2}{c|}{LSTM} & \multicolumn{2}{c|}{SVM (STFT)} & \multicolumn{2}{c}{LSTM} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Accuracy gain from Approach~1 to Approach~2 (percentage points).
+Green = large gain from retraining; red = degradation.}
+\label{tab:35_delta}
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Classifier} & \textbf{Small Room} & \textbf{Medium Room} & \textbf{Large Room} \\
+\midrule
+SVM (STFT) & $-1.25$\,pp         & $+5.00$\,pp         & $+1.25$\,pp \\
+SVM (MFCC) & $+7.50$\,pp         & $+6.25$\,pp         & $0.00$\,pp \\
+Conv1D     & \best{$+30.00$\,pp} & \best{$+30.00$\,pp} & \bad{$-1.25$\,pp} \\
+LSTM       & \best{$+50.00$\,pp} & \best{$+31.25$\,pp} & \best{$+35.00$\,pp} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Approach~2 observations.}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \textbf{LSTM dominates} (93.75\% small, 86.25\% large). The $+50$\,pp gain on the small room is the largest single improvement in this study.
+  \item \textbf{Conv1D completely collapses on the large room} (48.75\%, CM = \CM{0}{41}{0}{39}): every sample is predicted as dysarthric. Large-room RIR + VoiceFixer artefacts produce spectral patterns that Conv1D cannot disentangle without temporal memory.
+  \item \textbf{SVM (STFT) is the most consistent} (77--86\%) and wins the medium room condition. STFT features are relatively domain-agnostic even after dereverberation.
+  \item \textbf{SVM (MFCC) never exceeds 57.5\%} --- VoiceFixer's spectral envelope shaping severely distorts cepstral coefficients.
+  \item Comparing approaches: deep models (LSTM, Conv1D) suffer severe domain mismatch in Approach~1 but recover dramatically with retraining. SVM-STFT's shallower feature dependence makes it a reliable zero-shot baseline.
+\end{itemize}
+
+\subsection*{Visual: RIR Spectrogram Comparison --- Three Room Conditions}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{spectrogram_rir_healthy.png}
+\caption{Log-magnitude spectrogram comparison for a \textbf{healthy (control)} speaker across three room
+  conditions (rows) and four signal stages (columns).
+  \emph{Clean:} sharp harmonic bands, crisp phoneme boundaries.
+  \emph{RIR:} the impulse response itself --- small room shows a brief, decaying spike;
+  large room has a long diffuse tail.
+  \emph{Reverberated:} phoneme boundaries blur progressively with room size; spectral energy
+  smears into sustained plateaus, most severe in the large room.
+  \emph{VoiceFixer Dereverb:} small-room output closely matches clean speech; large-room output
+  retains residual smearing but is substantially cleaner than the reverberant signal.
+  This explains why matched-retrained LSTM (Approach~2) reaches 93.75\% for the small room:
+  VoiceFixer largely restores clean-like structure there.}
+\label{fig:rir_healthy}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{spectrogram_rir_dysarthric.png}
+\caption{Same pipeline for a \textbf{dysarthric} speaker.
+  Dysarthric speech exhibits weaker, less periodic spectral energy (compare Clean column to
+  Fig.~\ref{fig:rir_healthy}). VoiceFixer's noise gate more aggressively suppresses these
+  low-energy components, visible as darker regions in the Dereverb column relative to
+  the healthy case --- particularly in the large-room condition.
+  This asymmetric suppression is the root cause of two failure modes:
+  (i)~zero-shot classifiers (Approach~1) predict both classes as similarly attenuated,
+  yielding $\approx$43--50\% accuracy;
+  (ii)~Conv1D trained on dereverbed data (Approach~2, large room) collapses to all-dysarthric
+  predictions (TN=0, FP=41, FN=0, TP=39), whereas LSTM's temporal memory allows it to distinguish
+  residual temporal envelope differences and recover to 86.25\%.}
+\label{fig:rir_dysarthric}
+\end{figure}
+
+\end{document}
