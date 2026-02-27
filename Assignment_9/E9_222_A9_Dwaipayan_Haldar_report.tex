@@ -1,0 +1,217 @@
+\documentclass[12pt,a4paper,onecolumn]{exam}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{tikz}
+\usepackage[skins]{tcolorbox}
+\geometry{margin=1.8cm}
+
+
+% --- Define our simple \questionheader command ---
+\newcommand{\questionheader}[1]{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=black,
+    coltext=white,
+    boxrule=0pt,
+    fontupper=\Large\bfseries,
+    arc=4mm
+  ]
+  #1
+  \end{tcolorbox}%
+}
+% --- End of definition ---
+\newtcolorbox{answerbox}[1]{
+  boxrule=0.4pt,
+  colback=white,
+  height=#1,
+}
+
+
+\usepackage[font = small]{caption}
+\usepackage{subcaption}
+
+\newenvironment{blanksolution}
+  {%
+    \renewcommand{\solutiontitle}{\noindent}%
+    \begin{solution}%
+  }%
+  {\end{solution}}
+\usepackage{listings}
+
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily,
+    }
+
+\pagestyle{headandfoot}
+\runningheader{Assignment 9}{Signal Processing in Practise}{Dwaipayan Haldar}
+
+\begin{document}
+
+\begingroup
+    \centering
+    \LARGE E9 222 Signal Processing in Practice\\
+    \LARGE Assignment 9\\[0.5em]
+    \large \today\\[0.5em]
+    \large Dwaipayan Haldar \par
+\endgroup
+\noindent\rule{\textwidth}{0.5pt}
+\printanswers
+\renewcommand{\solutiontitle}{\noindent\textbf{Ans:}\enspace}
+\setlength{\parskip}{2pt}
+
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\questionheader{Question 1: Supervised Training}
+
+\begin{solution}
+
+\textbf{Setup.}
+ResNet-9 was trained from scratch on the 300 labeled images (100 per class: cat, deer, dog)
+for 200 epochs using cross-entropy loss.
+Optimizer: Adam ($\text{lr}=10^{-3}$, weight decay $10^{-4}$) with cosine-annealing LR schedule.
+Batch size: 32.
+The checkpoint with the best validation accuracy was retained.
+Weak augmentation (random horizontal and vertical flip) was applied to labeled samples during training.
+No unlabeled data was used.
+
+\textbf{Results.}
+The final test accuracy was \textbf{57.50\%} (best val accuracy: 63.33\%).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{q1_supervised_results.png}
+    \caption{Q1 supervised baseline. \textit{Left:} Training CE loss decreases steadily and plateaus
+    around epoch 100, indicating convergence with no further improvement. \textit{Centre:} Train
+    accuracy reaches $\sim$100\% while validation accuracy saturates around 60--63\%, a clear sign of
+    overfitting due to the very small labeled set (300 samples). \textit{Right:} The confusion matrix
+    shows the model handles \textit{deer} well but frequently confuses \textit{cat} and \textit{dog},
+    which share visual texture similarities at 32$\times$32 resolution.}
+    \label{fig:q1}
+\end{figure}
+
+\end{solution}
+
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\questionheader{Question 2: FixMatch}
+
+\begin{solution}
+
+\textbf{Setup.}
+FixMatch uses both the 300 labeled images and 5\,400 unlabeled images.
+Labeled batch size $B=32$; unlabeled batch size $\mu B = 128$ ($\mu=4$).
+Per epoch the unlabeled loader is iterated once while the labeled loader is cycled.
+The total loss is $\mathcal{L} = \mathcal{L}_s + \lambda\,\mathcal{L}_u$, where
+$\mathcal{L}_u$ is computed only for unlabeled samples whose weak-view confidence exceeds threshold $\tau$.
+
+\vspace{4pt}
+\noindent\textbf{Augmentations.}
+\begin{itemize}\setlength\itemsep{0pt}
+  \item \textbf{Weak}: \texttt{RandomHorizontalFlip} + \texttt{RandomVerticalFlip}.
+  \item \textbf{Strong}: same flips + \texttt{RandAugment(num\_ops=2, magnitude=9)} +
+        \texttt{RandomErasing(p=0.5)} (applied post-\texttt{ToTensor}).
+\end{itemize}
+
+
+\vspace{4pt}
+\noindent\textbf{Hyperparameter sweep.}
+A grid search was run over $\tau \in \{0.70, 0.80, 0.90, 0.95\}$ and
+$\lambda \in \{0.5, 1.0, 2.0\}$ for 100 epochs each (12 runs total). The pseudocode in the assignment uses SGD but I used Adam because of better convergence. Also, I have plotted pseudo label utilization, that gives a good idea how certain the model is, as the epoch increases the utilization also increases. 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\linewidth]{fixmatch_sweep_heatmap.png}
+    \caption{Val accuracy heatmap across the hyperparameter sweep.
+    The red star marks the best configuration: $\tau=0.90$, $\lambda=0.5$ (val acc 72.0\%).
+    Higher thresholds ($\tau=0.95$) restrict pseudo-labels too aggressively and slightly
+    hurt performance. A smaller $\lambda=0.5$ works best at $\tau=0.9$ because the
+    pseudo-labels, although confident, are not yet perfectly reliable; a lower weight
+    prevents the unsupervised loss from overwhelming the supervised signal.}
+    \label{fig:sweep}
+\end{figure}
+
+\noindent\textbf{Full training with best config ($\tau=0.90$, $\lambda=0.5$, 200 epochs).}
+Test accuracy: \textbf{71.37\%}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{q2_fixmatch_results.png}
+    \caption{FixMatch full run ($\tau=0.90$, $\lambda=0.5$).
+    \textit{Top-left:} The total loss is dominated by $\mathcal{L}_s$ early on; the
+    unsupervised component $\mathcal{L}_u$ rises gradually as more pseudo-labels pass
+    the threshold, then stabilises.
+    \textit{Top-right:} Mask ratio starts below 0.4 and climbs to $\sim$0.8 by
+    epoch 50, confirming that the supervised bootstrapping phase unlocks the unlabeled
+    data progressively.
+    \textit{Bottom-left:} FixMatch val accuracy (orange) overtakes the supervised
+    baseline (blue) from around epoch 20 and continues improving, demonstrating that
+    unlabeled data provides a consistent regularisation benefit.
+    \textit{Bottom-right:} The confusion matrix is more balanced than the baseline;
+    cat--dog confusion is visibly reduced.}
+    \label{fig:q2}
+\end{figure}
+
+\end{solution}
+
+\questionheader{Question 3: Analysis and Observation}
+
+\begin{solution}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Method} & \textbf{Val Acc} & \textbf{Test Acc} \\
+\midrule
+Supervised baseline (Q1) & 63.33\% & 57.50\% \\
+FixMatch $\tau=0.90$, $\lambda=0.5$ (Q2) & 74.67\% & \textbf{71.37\%} \\
+\bottomrule
+\end{tabular}
+\caption{Summary of results. FixMatch improves test accuracy by \textbf{+13.87 percentage points}.}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \includegraphics[width=\linewidth]{q3_val_accuracy_comparison.png}
+        \caption{Validation accuracy over 200 epochs for both methods (dotted lines show final test accuracy).}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\linewidth}
+        \includegraphics[width=\linewidth]{q3_comparison_cm.png}
+        \caption{Side-by-side test confusion matrices.}
+    \end{subfigure}
+    \caption{Q3 comparison: supervised baseline (blue) vs.\ FixMatch (orange).}
+    \label{fig:q3}
+\end{figure}
+
+\noindent\textbf{Observations.}
+The val-accuracy plot (Figure~\ref{fig:q3}a) shows that the supervised baseline plateaus
+sharply around epoch 30--40 and never recovers, a direct consequence of overfitting to
+only 300 labeled samples.
+FixMatch, by contrast, continues to improve well beyond epoch 100 as rising mask
+utilisation allows the 5\,400 unlabeled images to act as implicit regularisers.
+The gap between the dotted test lines ($+13.87$\,pp) confirms the benefit is not
+just on the validation set but generalises.
+
+The confusion matrices (Figure~\ref{fig:q3}b) reveal that the gain is concentrated
+on the cat and dog classes: the supervised baseline confuses 257 out of 1\,000 cats
+as dogs (and vice versa), whereas FixMatch reduces these cross-class errors substantially,
+suggesting that consistency regularisation on the abundant unlabeled images sharpens the
+feature boundary between visually similar fine-grained classes.
+
+The sweep (Figure~\ref{fig:sweep}) shows that the sweet spot is $\tau=0.90$:
+too low ($\tau=0.70$) admits noisy pseudo-labels and the model learns from incorrect
+supervision, while too high ($\tau=0.95$) leaves most unlabeled data unused,
+particularly in early epochs when confidence is low.
+A moderate unlabeled weight $\lambda=0.5$ performs best at the optimal threshold,
+balancing the reliable supervised signal against the inherently noisier pseudo-label signal.
+
+\end{solution}
+\end{document}
