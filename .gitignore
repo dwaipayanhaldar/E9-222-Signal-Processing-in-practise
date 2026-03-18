@@ -1,0 +1,106 @@
+# ============================================================
+# Datasets
+# ============================================================
+
+# Assignment 3 — Dysarthric/healthy speech corpus
+Assignment_3/Dataset_Audio/
+Assignment_3/Noises&RIR/
+Assignment_3/TA_files/
+
+# Assignment 4 — WAV files provided by the course
+Assignment_4/dataFiles/
+
+# Assignment 5 — Course-provided test images
+Assignment_5/imagesforlab1/
+
+# Assignment 6 — Course-provided test images
+Assignment_6/imagesforA11/
+
+# Assignment 7 — Oxford-IIIT Pet Dataset
+Assignment_7/Oxford-IIIT-Pet-Dataset/
+
+# Assignment 8 — CIFAR-10 download cache
+Assignment_8/data/
+
+# Assignment 9 — CIFAR-10 3-class split files
+Assignment_9/cifar10_3class_fixmatch/
+
+# ============================================================
+# Generated / Output Files
+# ============================================================
+
+# Assignment 3 — Generated audio and model checkpoints
+Assignment_3/Generated_Noisy/
+Assignment_3/Generated_Reverb/
+Assignment_3/Generated_Dereverbed/
+Assignment_3/Generated_Denoised/
+Assignment_3/model/
+Assignment_3/spectrogram_*.png
+Assignment_3/denoised_metrics_summary.csv
+
+# Assignment 7 — Trained model checkpoint
+Assignment_7/*.pth
+Assignment_7/SPP_Dwaipayan_Haldar_Incremental.zip
+
+# Assignment 8 — Trained models, plots, result JSONs
+Assignment_8/*.pth
+Assignment_8/loss_curves_*.png
+Assignment_8/mixup_visualization.png
+Assignment_8/mixup_results.json
+Assignment_8/manifold_results.json
+Assignment_8/SPP_Dwaipayan_Haldar_Mixup.zip
+
+# Assignment 9 — Plots, result JSONs, pycache
+Assignment_9/q1_supervised_results.png
+Assignment_9/q2_fixmatch_results.png
+Assignment_9/q3_comparison_cm.png
+Assignment_9/q3_val_accuracy_comparison.png
+Assignment_9/fixmatch_sweep_heatmap.png
+Assignment_9/fixmatch_results_summary.json
+Assignment_9/fixmatch_sweep_results.json
+Assignment_9/SPP_Dwaipayan_Haldar_FixMatch.zip
+
+# Assignment 10 — Reconstructed images and video output
+Assignment_10/Output_Images/
+Assignment_10/*.mp4
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# ============================================================
+# Jupyter
+# ============================================================
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# ============================================================
+# OS / IDE
+# ============================================================
+.DS_Store
+**/.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================================
+# Synctex (LaTeX auxiliary files)
+# ============================================================
+*.synctex.gz
